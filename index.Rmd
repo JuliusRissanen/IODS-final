@@ -1,0 +1,21 @@
+---
+title: "IODS course-final"
+author: "Julius Rissanen"
+output:
+  html_document:
+    theme: readable
+    toc: TRUE
+    toc_depth: 2
+    fig_caption: true
+    fig_width: 6
+    fig_height: 4
+    code_folding: hide
+---
+
+#***
+  
+#```{r child = "chapter1.Rmd"}
+#```
+  
+#***
+ 
