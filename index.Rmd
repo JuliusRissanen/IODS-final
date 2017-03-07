@@ -1,6 +1,7 @@
 ---
-title: "IODS course-final"
-author: "Julius Rissanen"
+title: "Julius Rissanen"
+author: "julius.rissanen@helsinki.fi"
+date: "8.3.2017"
 output:
   html_document:
     theme: readable
@@ -12,10 +13,10 @@ output:
     code_folding: hide
 ---
 
-#***
+***
   
-#```{r child = "chapter1.Rmd"}
-#```
+```{r child = "Pima_Indians_Diabetes.Rmd"}
+```
   
-#***
+***
  
