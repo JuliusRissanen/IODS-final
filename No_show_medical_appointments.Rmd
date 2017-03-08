@@ -4,13 +4,19 @@ author: "Julius Rissanen"
 date: "8.3.2017"
 output: html_document
 ---
-```{r, message=FALSE, error=FALSE}
+Abstract
+
+'No Show appointments'-data provides information on people who have went to medical care and then missed or participated on the appointment. Not showing up is big problem as about 30% of people in dataset don't show up at the appointment. Dataset is really decently sized at 300 000 patients which provides good overview of the problem without small sample size problems. Logistic regression was chosen as statistical method to provide easily understandable model for intepreting the each variable's effect. Predictors which predicted increasing chance of missing the appointment were easily forecastable (alchoholism, smokers, saturday). Surprising predictor was before appointment sent SMS messages which didn't seem to have effect on people showing up. Logistic regression didn't provide good prediction accuracy in the end and thus more complex models would be needed if we want to get better at predicting who will miss their appointment.
+
+```{r, message=FALSE, error=FALSE, warning=FALSE}
 #needed libraries
 library(ggplot2)
 library(tidyverse)
 library(reshape)
 library(gridExtra)
-
+library(stargazer)
+library(magrittr)
+library(boot)
 ```
 
 #1. Medical appointment show up
@@ -51,7 +57,7 @@ noShow$Status <- as.logical(noShow$Status)
 str(noShow)
 ```
 
-From the structure of the data we can se that it has 16 variables and 299 994 patients. 6 patients were deleted from the original dataset because of unreasonable values in age variable (<0). Date and time based variables were cleaned to have only dates or hours. Handicap and SMS_reminder variables were recoded to binaries (from 0-4 scale Handicap and 0-2 amount of SMS send)
+From the structure of the data we can se that it has 16 variables and 299 988 patients. 6 patients were deleted from the original dataset because of unreasonable values in age variable (<0) also only 6 people were on registered on sunday so they are also deleted from causing problems with DayOfTheWeek variable. Date and time based variables were cleaned to have only dates or hours. Handicap and SMS_reminder variables were recoded to binaries (from 0-4 scale Handicap and 0-2 amount of SMS send)
 
 Variables are self explanatory from their names.
 
@@ -108,7 +114,6 @@ We combine other (binary) variables to same plot as they seem to be similar in t
 ```{r}
 keep_variables <- c("Diabetes", "Alchoholism", "Hypertension", "Handicap", "Smokes", "Scholarship", "Tuberculosis")
 binaries <- select(noShow, one_of(keep_variables))
-gather(binaries)
 gather(binaries) %>% ggplot(aes(value), fill = Status) + facet_wrap("key", scales = "free") + geom_bar() + theme_bw()
 ```
 
@@ -133,9 +138,116 @@ Tuberculosis_graph <- ggplot(noShow, aes(x=Tuberculosis, fill=Status)) + geom_ba
 grid.arrange(Diabetes_graph, Alchoholism_graph, Hypertension_graph, Handicap_graph, Smokes_graph, Scholarship_graph, Tuberculosis_graph, ncol=2, top='Binary variables')
 ```
 
-Again, results seem very identical. Alchoholism and Tuberculosis seems to increase risk of not arriving. Diabetes and hypertension seems to increase the chance of coming to appointment. But we need
+Again, results seem very identical. Alchoholism and Tuberculosis seems to increase risk of not arriving. Diabetes and hypertension seems to increase the chance of coming to appointment. But we need further analysis to validate results and their statistical significance.
 
 
 ##1.5 Description of the statistical method
 
 I'm going to use logistic regression to analyse dataset whether people arrive or do not arrive to medical appointments. Logistic regression is right tool for this type of problem because compared to linear regression we are working with binary dependent variable compared to continous (linear regression). Logistic regression is also preferrable against linear discriminant analysis because I'm more interested in probabilities how much each variable predicts the outcome compared to prediction and how variables "layout" in the linear discriminants in the biplot.
+
+We will define linear model that can asses the probability of "success", in this case not showing up for medical appointment. We can define 'Odds' as p/(1-p), higher odds is corresponding to higher probability of success. To make it into logistic regression we can take log of odds ratio 
+-> log(p/1-p) = a + bx + e which can be solved into 
+P(Y=1) = 1/1+e^(-a-bx), which is our final form of logistic regression 
+
+We can intepret exponents of estimated coefficients as odds ratios and thus give intepretations to estimates from statistical model.
+
+##1.6 Analysis
+
+###1.6.1 first model
+We start by fitting our model to all variables except dates. We will also divide the dataset to training (80%) and test data for later validation.
+```{r}
+# number of rows 
+n <- nrow(noShow)
+
+# choose randomly 80% of the rows
+rows <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- noShow[rows,]
+
+# create test set 
+test <- noShow[-rows,]
+
+# save the correct classes from test data
+correct_classes <- test$Status
+
+# remove the Status variable from test data
+test <- select(test, -Status)
+
+#We will run the logistic regression on the training data
+m1 <- glm(Status ~ Age + Gender + DayOfTheWeek + Diabetes + Alchoholism + Hypertension + Handicap + Smokes + Scholarship + Tuberculosis + Sms_Reminder + AwaitingTime + RegistrationHour ,data = train, family = "binomial")
+summary(m1)
+```
+
+All the variables except Gender, Diabetes and Handicap were statistically significant (+ sunday). 
+Next we will get odds ratios and their confidence intervals with the help of R so we can do some intepretation
+
+###1.6.2 ODDS RATIOS
+
+```{r, message= FALSE, error=FALSE}
+# compute odds ratios (OR)
+OR <- coef(m1) %>% exp
+# compute confidence intervals (CI)
+CI <-confint(m1) %>% exp
+# print out the odds ratios with their confidence intervals
+cbind(OR, CI)
+```
+
+Strongest effects can be seen from the alcholism (1,40 OR), saturday (1,45 OR), smoking (1,27 OR) and scholarship (1,26 OR). Alchoholism, smoking and scholarship (medical appointment paid by someone else [public]) can be seen as indicators of the people with harder lifes. Saturday as an day-off might get people more likely to forget it and scholarship might.
+
+On the other hand interesting finding is that sending SMS (0.90 OR) before appointment doesn't provide more benefits for medical centers as it's OR is one of the lowest. 
+
+###1.6.3 second model and prediction
+
+We will drop all the non statistically significant variables and run model again.
+
+```{r}
+m2 <- glm(Status ~ Age  + DayOfTheWeek + Alchoholism + Hypertension + Smokes + Scholarship  + Sms_Reminder + AwaitingTime + RegistrationHour ,data = train, family = "binomial")
+summary(m2)
+```
+
+```{r}
+#predict probabilities and add it into test data
+probs <- predict(m2, test, type = "response")
+test <- mutate(test, probability = probs)
+
+# use the probabilities to make prediction of status
+test <- mutate(test, prediction = probability > 0.5)
+
+
+```
+Confusion matrices for the predictions:
+```{r}
+#table the prediction versus correct Statuses
+table(correct = as.logical(correct_classes), prediction = test$prediction)
+table(correct = as.logical(correct_classes), prediction = test$prediction) %>% prop.table() %>% addmargins()
+```
+
+Next we calculate mean prediction error
+```{r}
+## training error
+# define a loss function (mean prediction error)
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+loss_func(class = correct_classes, prob = test$probability)
+```
+
+
+And after that we do crossvalidated training error
+```{r}
+cv <- cv.glm(data = train, cost = loss_func, glmfit = m2, K = 10)
+# average number of wrong predictions in the cross validation
+cv$delta[1]
+```
+
+Our model doesn't provide really good prediction accuracy. Mean prediction error on test data is 0.303 and cross-validated is 0.304. From the earlier confusion matrix we can see that our model has a lot of problems identifying people who will not come to medical appointment. Only 102 were correctly classified to not coming compared 18050 false positives. False positives weren't as big of an problem. 
+
+##1.7 Conclusion and discussion
+
+By managing explain why someone misses the medical appointment would provide benefits for medical sector's  productivity with better planning.
+
+Doing analysis with logistic regression allowed expressing the probabilitties (Odds ratios) about effect of each attainable variable. Factors which increase the probability of not coming weren't surprising but failure of SMS messages provided to be interesting. Further analysis on how to get people to not miss their appointments could provide useful information. 
+
+Logistic regression didn't provide good prediction accuracy in the end. Some other more accurate but not as transparent methods could provide better prediction accuracy for the job compared to logistic regression which in the end is best used as relatively easily understandable statistical model.

@@ -78,6 +78,11 @@ noShow$Handicap[noShow$Handicap > 0] <- 1
 #SMS_reminder to 0/1 variable
 noShow$Sms_Reminder[noShow$Sms_Reminder > 0]  <- 1
 
+#Sunday also has only 6 patients registered that day so we will delete those ones to clean up
+#They don't provide any significance for our analysis
+noShow <- filter(noShow, DayOfTheWeek != "Sunday")
+
+
 #save data to the folder
 write.csv(noShow, "data/noShow.csv")
 
