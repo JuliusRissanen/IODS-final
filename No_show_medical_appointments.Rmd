@@ -1,16 +1,141 @@
 ---
-title: "Julius Rissanen"
-author: "julius.rissanen@helsinki.fi"
+title: "Medical appointment show up"
+author: "Julius Rissanen"
 date: "8.3.2017"
 output: html_document
 ---
-#1. No show for medical appointments
+```{r, message=FALSE, error=FALSE}
+#needed libraries
+library(ggplot2)
+library(tidyverse)
+library(reshape)
+library(gridExtra)
 
-
-```{r}
-noShow <- read.csv("data/No-show-Issue-Comma-300k.csv")
-str(noShow)
-colnames(noShow)
-table(noShow$ApointmentData)
 ```
 
+#1. Medical appointment show up
+
+##1.1 Description of the research question
+
+My study looks to find what backgrounds in people can predict their probability of missing medical appointments.
+
+##1.2 Data wrangling
+
+Data wrangling file can be found from the github page:
+https://github.com/JuliusRissanen/IODS-final/blob/master/data/create_noShow.R
+
+
+##1.3 Description of the data
+
+My data is open dataset from Kaggle. It has 300 000 patients and their status if they missed or didn't miss their medical appointment. Data can be downloaded from:
+https://www.kaggle.com/joniarroba/noshowappointments
+
+```{r}
+#load dataset
+noShow <- read.csv("data/noShow.csv", row.names = 1)
+
+#fix RegistrationDate and AppoitmentDate to 'date' variables
+noShow$RegistrationDate <- as.Date(noShow$RegistrationDate)
+noShow$AppoitmentDate <- as.Date(noShow$AppoitmentDate)
+#Fix binaries to logical
+noShow$Diabetes <- as.logical(noShow$Diabetes)
+noShow$Alchoholism <- as.logical(noShow$Alchoholism)
+noShow$Hypertension <- as.logical(noShow$Hypertension)
+noShow$Handicap <- as.logical(noShow$Handicap)
+noShow$Smokes <- as.logical(noShow$Smokes)
+noShow$Scholarship <- as.logical(noShow$Scholarship)
+noShow$Tuberculosis <- as.logical(noShow$Tuberculosis)
+noShow$Status <- as.logical(noShow$Status)
+
+#Check structure of the data
+str(noShow)
+```
+
+From the structure of the data we can se that it has 16 variables and 299 994 patients. 6 patients were deleted from the original dataset because of unreasonable values in age variable (<0). Date and time based variables were cleaned to have only dates or hours. Handicap and SMS_reminder variables were recoded to binaries (from 0-4 scale Handicap and 0-2 amount of SMS send)
+
+Variables are self explanatory from their names.
+
+Continuous ones are Age and AwaitingTime. Awaiting time calculates how many days were between their reservation and medical appoitment.
+
+Factor ones are Gender and DayOfTheWeek. Gender 2 level for male/female and DayOfTheWeek 7 level for weekdays
+
+Binary ones are Diabetes, Alcholism, Hypertension, Smokes, Scholarship, Tuberculosis, handicap, SMS_reminder where 1 means person is e.g. diabetic ('Diabetes' variable).
+
+
+##1.4 Data exploration
+
+First we start with basic descriptive statistics
+```{r}
+summary(noShow)
+```
+
+Our average age is 37.81 (median 38.00), youngest is under 1 year old and oldest 113. Data is really skewed towards women them accounting around 60% of our whole dataset. All our binary (smokes, diabetes, smokes etc.) variables have under 10% of patients except for SMS-reminder which was sent to around 60% of patients. Average waiting is 13.84 days with median of 8 days. Registration hours for appointments are around noon (mean 11.27).
+
+30% of people in the dataset missed the medical appointment.
+
+
+###1.4.1 Age further exploration
+```{r}
+ggplot(noShow, aes(Age)) + geom_density(aes(color = as.factor(Status))) + theme_classic()
+```
+
+From the density plot we can see that Age is distributed thus that most of the mass is under 60 year olds. I would've guessed that older people were more active using medical services but in this dataset our intepretation needs to be done on the effect younger ones (unless we do separate analysis comparing older ones specifically). Also by plotting Age based on their Status-variable we can see that it looks like older ones are more likely to miss their appoitment.
+
+###1.4.2 'Gender' further exploration
+
+We will see graphically how gender affects arrival to medical appoitment.
+```{r}
+ggplot(noShow, aes(x=as.factor(Gender), fill= as.factor(Status))) + geom_bar(position ='fill') + xlab("Gender") + ylab("Percentage of no show up")
+```
+
+Gender doesn't seem to have clear difference in the affect of no show up.
+
+###1.4.3 SMS-reminder further exploration
+
+We will check basic graph on SMS-remind variable if it looks to have affect on showing up.
+
+```{r}
+ggplot(noShow, aes(x=as.factor(Sms_Reminder), fill = as.factor(Status))) + geom_bar(position = 'fill') + ylab("Percentage of no-show up") + xlab("SMS-reminder sent") + theme_classic()
+```
+
+
+Even closer difference.
+
+###1.4.4 Other binary variables
+
+We combine other (binary) variables to same plot as they seem to be similar in their distribution of no show ups (<10%) 
+
+```{r}
+keep_variables <- c("Diabetes", "Alchoholism", "Hypertension", "Handicap", "Smokes", "Scholarship", "Tuberculosis")
+binaries <- select(noShow, one_of(keep_variables))
+gather(binaries)
+gather(binaries) %>% ggplot(aes(value), fill = Status) + facet_wrap("key", scales = "free") + geom_bar() + theme_bw()
+```
+
+And then next their distribution compared to Status
+
+```{r}
+
+Diabetes_graph <- ggplot(noShow, aes(x=Diabetes, fill=Status)) + geom_bar(position="fill")
+  
+Alchoholism_graph <- ggplot(noShow, aes(x=Alchoholism, fill=Status)) + geom_bar(position="fill")
+
+Hypertension_graph <- ggplot(noShow, aes(x=Hypertension, fill=Status)) + geom_bar(position="fill")
+
+Handicap_graph <- ggplot(noShow, aes(x=Handicap, fill=Status)) + geom_bar(position="fill")
+
+Smokes_graph <- ggplot(noShow, aes(x=Smokes, fill=Status)) + geom_bar(position="fill")
+
+Scholarship_graph <- ggplot(noShow, aes(x=Scholarship, fill=Status)) + geom_bar(position="fill")
+
+Tuberculosis_graph <- ggplot(noShow, aes(x=Tuberculosis, fill=Status)) + geom_bar(position="fill")
+
+grid.arrange(Diabetes_graph, Alchoholism_graph, Hypertension_graph, Handicap_graph, Smokes_graph, Scholarship_graph, Tuberculosis_graph, ncol=2, top='Binary variables')
+```
+
+Again, results seem very identical. Alchoholism and Tuberculosis seems to increase risk of not arriving. Diabetes and hypertension seems to increase the chance of coming to appointment. But we need
+
+
+##1.5 Description of the statistical method
+
+I'm going to use logistic regression to analyse dataset whether people arrive or do not arrive to medical appointments. Logistic regression is right tool for this type of problem because compared to linear regression we are working with binary dependent variable compared to continous (linear regression). Logistic regression is also preferrable against linear discriminant analysis because I'm more interested in probabilities how much each variable predicts the outcome compared to prediction and how variables "layout" in the linear discriminants in the biplot.

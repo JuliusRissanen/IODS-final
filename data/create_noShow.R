@@ -71,6 +71,13 @@ noShow <- select(noShow, -AppointmentRegistration)
 #is under 0 years old.
 noShow <- filter(noShow, Age >= 0 )
 
+#Handicap variable has values from 0 to 4 which point how severe the handicapness is
+#We will change it to binary just pointing if person has handicap or not
+noShow$Handicap[noShow$Handicap > 0] <- 1
+
+#SMS_reminder to 0/1 variable
+noShow$Sms_Reminder[noShow$Sms_Reminder > 0]  <- 1
+
 #save data to the folder
 write.csv(noShow, "data/noShow.csv")
 
